@@ -5,6 +5,8 @@ import { sortBy } from "lodash";
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
 import { DateRange } from "react-day-picker";
+import Link from "next/link";
+import { Text, Title } from "@tremor/react";
 import { useExpanded } from "@/app/(app)/stats/useExpanded";
 import { CategoryStatsResponse } from "@/app/api/user/stats/categories/route";
 import { RecipientsResponse } from "@/app/api/user/stats/recipients/route";
@@ -14,6 +16,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BarList } from "@/components/charts/BarList";
 import { getDateRangeParams } from "@/app/(app)/stats/params";
 import { getGmailSearchUrl } from "@/utils/url";
+import { Card } from "@/components/Card";
+import { Button } from "@/components/ui/button";
+import { usePremium } from "@/components/PremiumAlert";
 
 export function EmailAnalytics(props: {
   dateRange?: DateRange | undefined;
@@ -51,6 +56,8 @@ export function EmailAnalytics(props: {
       refreshInterval: props.refreshInterval,
     }
   );
+
+  const { isPremium } = usePremium();
 
   const { expanded, extra } = useExpanded();
 
@@ -128,25 +135,43 @@ export function EmailAnalytics(props: {
         loadingComponent={<Skeleton className="h-64 w-full rounded" />}
       >
         {dataCategories && (
-          <BarList
-            title="Types of email you're receiving"
-            // subtitle="Last 50 threads"
-            col1="Category"
-            col2="Emails"
-            data={sortBy(
-              Object.entries(dataCategories.countByCategory),
-              ([, count]) => -count
-            )
-              .slice(0, expanded ? undefined : 5)
-              .map(([category, count]) => ({
-                name:
-                  category === "undefined"
-                    ? "Uncategorized"
-                    : capitalCase(category),
-                value: count,
-              }))}
-            extra={extra}
-          />
+          <div className="relative h-full">
+            <BarList
+              title="Types of email you're receiving"
+              // subtitle="Last 50 threads"
+              col1="Category"
+              col2="Emails"
+              data={sortBy(
+                Object.entries(dataCategories.countByCategory),
+                ([, count]) => -count
+              )
+                .slice(0, expanded ? undefined : 5)
+                .map(([category, count]) => ({
+                  name:
+                    category === "undefined"
+                      ? "Uncategorized"
+                      : capitalCase(category),
+                  value: count,
+                }))}
+              extra={extra}
+            />
+
+            {!isPremium && (
+              <div className="absolute inset-0 flex items-center justify-center rounded bg-slate-900/30">
+                <div className="m-4 w-full max-w-full">
+                  <Card>
+                    <Title>AI Categorisation</Title>
+                    <Text className="mt-1">
+                      Upgrade to premium to use AI categorisation.
+                    </Text>
+                    <Button className="mt-4 w-full">
+                      <Link href="/premium">Upgrade</Link>
+                    </Button>
+                  </Card>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </LoadingContent>
     </div>

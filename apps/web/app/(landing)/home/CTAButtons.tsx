@@ -8,24 +8,16 @@ export function CTAButtons() {
   const posthog = usePostHog();
 
   return (
-    <div className="mt-10 flex items-center justify-center gap-x-6">
-      {/* <Button
-        size="2xl"
-        link={{ href: "/waitlist" }}
-        onClick={() => {
-          posthog.capture("Clicked Join Waitlist");
-        }}
-      >
-        Join Waitlist
-      </Button> */}
+    <div className="mt-10 grid items-center justify-center gap-x-6 gap-y-2 sm:flex">
       <Button
         size="2xl"
-        link={{ href: "/stats" }}
+        link={{ href: "/welcome" }}
         onClick={() => {
           posthog.capture("Clicked Get Started");
         }}
+        color="blue"
       >
-        Get Started
+        Get Started for Free
       </Button>
       <Button
         size="2xl"

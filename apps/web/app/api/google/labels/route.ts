@@ -1,10 +1,12 @@
-import { gmail_v1 } from "googleapis";
+import { type gmail_v1 } from "googleapis";
 import { NextResponse } from "next/server";
 import { auth } from "@/app/api/auth/[...nextauth]/auth";
 import { getGmailClient } from "@/utils/gmail/client";
 import { getGmailLabels } from "@/utils/label";
+import { withError } from "@/utils/middleware";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 // const labelsQuery = z.object({});
 // export type LabelsQuery = z.infer<typeof labelsQuery>;
@@ -15,7 +17,7 @@ async function getLabels(gmail: gmail_v1.Gmail) {
   return { labels };
 }
 
-export async function GET() {
+export const GET = withError(async () => {
   const session = await auth();
   if (!session?.user.email)
     return NextResponse.json({ error: "Not authenticated" });
@@ -24,4 +26,4 @@ export async function GET() {
   const labels = await getLabels(gmail);
 
   return NextResponse.json(labels);
-}
+});

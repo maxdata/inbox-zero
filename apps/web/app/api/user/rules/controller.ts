@@ -33,7 +33,7 @@ export async function updateRules({
 
   // Then, delete the rules that are not in the new set
   const rulesToDelete = currentRules.filter(
-    (cr) => !body.rules.some((br) => br.id === cr.id)
+    (cr) => !body.rules.some((br) => br.id === cr.id),
   );
 
   // Prepare the delete operations
@@ -46,11 +46,12 @@ export async function updateRules({
     .filter((rule) => rule.id)
     .map((rule, i) => {
       return prisma.rule.update({
-        where: { id: rule.id },
+        where: { id: rule.id, userId },
         data: {
           name: rule.name || `Rule ${i + 1}`,
           instructions: rule.instructions || undefined,
           automate: rule.automate ?? false,
+          runOnThreads: rule.runOnThreads ?? false,
           // actions: rule.actions,
         },
       });
@@ -66,6 +67,7 @@ export async function updateRules({
           name: rule.name || `Rule ${upsertOperations.length + i + 1}`,
           instructions: rule.instructions,
           automate: rule.automate ?? false,
+          runOnThreads: rule.runOnThreads ?? false,
           // actions: rule.actions,
           user: { connect: { id: userId } },
         },

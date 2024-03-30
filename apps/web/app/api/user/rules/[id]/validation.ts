@@ -12,7 +12,6 @@ export const zodActionType = z.enum([
   ActionType.MARK_SPAM,
   ActionType.REPLY,
   ActionType.SEND_EMAIL,
-  ActionType.SUMMARIZE,
 ]);
 
 export const zodAction = z.object({
@@ -29,6 +28,7 @@ export const updateRuleBody = z.object({
   name: z.string(),
   instructions: z.string().nullish(),
   automate: z.boolean().nullish(),
+  runOnThreads: z.boolean().nullish(),
   actions: z.array(zodAction).nullish(),
 });
 

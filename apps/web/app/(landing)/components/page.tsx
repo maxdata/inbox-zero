@@ -5,10 +5,14 @@ import {
   SectionDescription,
   SectionHeader,
   MessageText,
+  TypographyP,
+  TypographyH3,
+  TextLink,
 } from "@/components/Typography";
 import { Button } from "@/components/Button";
 import { Badge } from "@/components/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertBasic } from "@/components/Alert";
 
 export default function Components() {
   return (
@@ -19,9 +23,12 @@ export default function Components() {
         <div className="space-y-6">
           <div className="underline">Typography</div>
           <PageHeading>PageHeading</PageHeading>
+          <TypographyH3>TypographyH3</TypographyH3>
           <SectionHeader>SectionHeader</SectionHeader>
           <SectionDescription>SectionDescription</SectionDescription>
           <MessageText>MessageText</MessageText>
+          <TypographyP>TypographyP</TypographyP>
+          <TextLink href="#">TextLink</TextLink>
         </div>
 
         <div className="space-y-6">
@@ -73,6 +80,32 @@ export default function Components() {
               <TabsContent value="account">Account content</TabsContent>
               <TabsContent value="password">Password content</TabsContent>
             </Tabs>
+          </div>
+        </div>
+
+        <div>
+          <div className="underline">Alerts</div>
+          <div className="mt-4 space-y-2">
+            <AlertBasic
+              title="Alert title default"
+              description="Alert description"
+              variant="default"
+            />
+            <AlertBasic
+              title="Alert title success"
+              description="Alert description"
+              variant="success"
+            />
+            <AlertBasic
+              title="Alert title destructive"
+              description="Alert description"
+              variant="destructive"
+            />
+            <AlertBasic
+              title="Alert title blue"
+              description="Alert description"
+              variant="blue"
+            />
           </div>
         </div>
       </div>

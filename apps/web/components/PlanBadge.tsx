@@ -1,44 +1,57 @@
+import { CheckCircleIcon } from "lucide-react";
 import { capitalCase } from "capital-case";
 import { Badge, Color } from "@/components/Badge";
 import { HoverCard } from "@/components/HoverCard";
-import { ActionType } from "@prisma/client";
+import { ActionType, ExecutedRule, ExecutedAction, Rule } from "@prisma/client";
 
-type Plan = {
-  rule?: {
-    name: string;
-    actions: {
-      type: ActionType;
-      to?: string | null;
-      content?: string | null;
-      label?: string | null;
-    }[];
-  } | null;
-  databaseRule?: { instructions: string };
+type Plan = Pick<ExecutedRule, "reason" | "status"> & {
+  rule: Rule | null;
+  actionItems: ExecutedAction[];
 };
 
-// export function PlanBadge(props: { plan?: Thread["plan"] }) {
 export function PlanBadge(props: { plan?: Plan }) {
   const { plan } = props;
 
-  if (!plan) return <Badge color="gray">Not planned</Badge>;
+  // if (!plan) return <Badge color="gray">Not planned</Badge>;
+  if (!plan) return null;
 
-  if (!plan.rule) return <Badge color="yellow">No plan</Badge>;
+  if (!plan.rule) {
+    const component = <Badge color="yellow">No plan</Badge>;
+
+    if (plan.reason) {
+      return (
+        <HoverCard
+          content={
+            <div className="max-w-full whitespace-pre-wrap text-sm">
+              {plan.reason}
+            </div>
+          }
+        >
+          {component}
+        </HoverCard>
+      );
+    }
+    return component;
+  }
 
   return (
     <HoverCard
       content={
         <div className="text-sm">
-          {plan.databaseRule?.instructions ? (
+          {plan.rule?.instructions ? (
             <div className="max-w-full whitespace-pre-wrap">
-              {plan.databaseRule.instructions}
+              {plan.rule.instructions}
             </div>
           ) : null}
           <div className="mt-4 space-y-2">
-            {plan.rule.actions?.map((action, i) => {
+            {plan.actionItems?.map((action, i) => {
               return (
                 <div key={i}>
-                  <Badge color={getActionColor(action.type)}>
-                    {getActionMessage(action.type, plan)}
+                  <Badge
+                    color={getActionColor(action.type)}
+                    className="whitespace-pre-wrap"
+                  >
+                    {getActionMessage(action)}
                   </Badge>
                 </div>
               );
@@ -47,36 +60,33 @@ export function PlanBadge(props: { plan?: Plan }) {
         </div>
       }
     >
-      <Badge
-        color={getPlanColor(plan)}
-        className="max-w-[110px] overflow-hidden"
-      >
+      <Badge color={getPlanColor(plan, plan.status === "APPLIED")}>
+        {plan.status === "APPLIED" && (
+          <CheckCircleIcon className="mr-2 h-3 w-3" />
+        )}
         {plan.rule.name}
       </Badge>
     </HoverCard>
   );
 }
 
-function getActionMessage(actionType: ActionType, plan: Plan): string {
-  switch (actionType) {
+function getActionMessage(action: ExecutedAction): string {
+  switch (action.type) {
     case ActionType.LABEL:
-      if (plan.rule?.actions?.[0]?.label)
-        return `Label as ${plan.rule.actions[0].label}`;
+      if (action.label) return `Label as ${action.label}`;
     case ActionType.REPLY:
     case ActionType.SEND_EMAIL:
     case ActionType.FORWARD:
-      if (plan.rule?.actions?.[0]?.to)
-        return `${capitalCase(actionType)} to ${plan.rule.actions[0].to}${
-          plan.rule?.actions?.[0]?.content
-            ? `:\n${plan.rule.actions[0].content}`
-            : ""
+      if (action.to)
+        return `${capitalCase(action.type)} to ${action.to}${
+          action.content ? `:\n${action.content}` : ""
         }`;
     default:
-      return capitalCase(actionType);
+      return capitalCase(action.type);
   }
 }
 
-function getActionColor(actionType: ActionType): Color {
+export function getActionColor(actionType: ActionType): Color {
   switch (actionType) {
     case ActionType.REPLY:
     case ActionType.FORWARD:
@@ -92,18 +102,22 @@ function getActionColor(actionType: ActionType): Color {
   }
 }
 
-function getPlanColor(plan: Plan | null): Color {
-  switch (plan?.rule?.actions?.[0]?.type) {
+function getPlanColor(plan: Plan | null, executed: boolean): Color {
+  if (executed) return "green";
+
+  const firstAction = plan?.actionItems?.[0];
+
+  switch (firstAction?.type) {
     case ActionType.REPLY:
     case ActionType.FORWARD:
     case ActionType.SEND_EMAIL:
     case ActionType.DRAFT_EMAIL:
-      return "green";
+      return "blue";
     case ActionType.ARCHIVE:
       return "yellow";
     case ActionType.LABEL:
-      return "blue";
-    default:
       return "purple";
+    default:
+      return "indigo";
   }
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { gmail_v1 } from "googleapis";
+import { type gmail_v1 } from "googleapis";
 import MailComposer from "nodemailer/lib/mail-composer";
 import Mail from "nodemailer/lib/mailer";
 
@@ -36,19 +36,24 @@ const createMail = async (options: Mail.Options) => {
   return encodeMessage(message);
 };
 
-const createRawMailMessage = async (
-  gmail: gmail_v1.Gmail,
-  body: SendEmailBody
-) => {
+const createRawMailMessage = async (body: SendEmailBody) => {
   return await createMail({
     to: body.to,
     cc: body.cc,
     bcc: body.bcc,
     subject: body.subject,
-    text: body.messageText,
-    html: body.messageHtml,
+    alternatives: [
+      {
+        contentType: "text/plain; charset=UTF-8",
+        content: body.messageText,
+      },
+      {
+        contentType: "text/html; charset=UTF-8",
+        content:
+          body.messageHtml || convertTextToHtmlParagraphs(body.messageText),
+      },
+    ],
     // attachments: fileAttachments,
-    textEncoding: "base64",
     // https://datatracker.ietf.org/doc/html/rfc2822#appendix-A.2
     references: body.replyToEmail
       ? `${body.replyToEmail.references || ""} ${
@@ -56,18 +61,21 @@ const createRawMailMessage = async (
         }`.trim()
       : "",
     inReplyTo: body.replyToEmail ? body.replyToEmail.headerMessageId : "",
+    headers: {
+      "X-Mailer": "Inbox Zero Web",
+    },
   });
 };
 
 // https://developers.google.com/gmail/api/guides/sending
 // https://www.labnol.org/google-api-service-account-220405
 export async function sendEmail(gmail: gmail_v1.Gmail, body: SendEmailBody) {
-  const raw = await createRawMailMessage(gmail, body);
+  const raw = await createRawMailMessage(body);
 
   const result = await gmail.users.messages.send({
     userId: "me",
     requestBody: {
-      threadId: body.replyToEmail ? body.replyToEmail.threadId : "",
+      threadId: body.replyToEmail ? body.replyToEmail.threadId : undefined,
       raw,
     },
   });
@@ -76,7 +84,7 @@ export async function sendEmail(gmail: gmail_v1.Gmail, body: SendEmailBody) {
 }
 
 export async function draftEmail(gmail: gmail_v1.Gmail, body: SendEmailBody) {
-  const raw = await createRawMailMessage(gmail, body);
+  const raw = await createRawMailMessage(body);
 
   const result = await gmail.users.drafts.create({
     userId: "me",
@@ -90,3 +98,17 @@ export async function draftEmail(gmail: gmail_v1.Gmail, body: SendEmailBody) {
 
   return result;
 }
+
+const convertTextToHtmlParagraphs = (text: string): string => {
+  // Split the text into paragraphs based on newline characters
+  const paragraphs = text
+    .split("\n")
+    .filter((paragraph) => paragraph.trim() !== "");
+
+  // Wrap each paragraph with <p> tags and join them back together
+  const htmlContent = paragraphs
+    .map((paragraph) => `<p>${paragraph.trim()}</p>`)
+    .join("");
+
+  return `<html><body>${htmlContent}</body></html>`;
+};

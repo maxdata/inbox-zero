@@ -124,7 +124,7 @@ export const getNewsletterCounts = tb.buildPipe({
 export const getEmailsFromSender = tb.buildPipe({
   pipe: "emails_from_sender",
   parameters: getEmailsParameters.merge(
-    z.object({ fromEmail: z.string().transform(encrypt) })
+    z.object({ fromEmail: z.string().transform(encrypt) }),
   ),
   data: getEmailsData,
 });
@@ -140,7 +140,7 @@ export const getLargestEmails = tb.buildPipe({
   data: z.object({
     gmailMessageId: z.string(),
     from: z.string().transform(decrypt),
-    subject: z.string().transform(decrypt),
+    subject: z.string().nullable().transform(decrypt),
     timestamp: z.number(),
     sizeEstimate: z.number().transform((t) => t ?? 0),
   }),
@@ -155,5 +155,36 @@ export const getLastEmail = tb.buildPipe({
   data: z.object({
     timestamp: z.number(),
     gmailMessageId: z.string(),
+  }),
+});
+
+export const getNewSenders = tb.buildPipe({
+  pipe: "new_senders",
+  parameters: z.object({
+    ownerEmail: z.string(),
+    cutOffDate: z.number(),
+  }),
+  data: z.object({
+    gmailMessageId: z.string(),
+    from: z.string().transform(decrypt),
+    fromDomain: z.string().transform(decrypt),
+    subject: z.string().nullable().transform(decrypt),
+    timestamp: z.number(),
+    unsubscribeLink: z.string().nullish(),
+  }),
+});
+
+export const getWeeklyStats = tb.buildPipe({
+  pipe: "weekly_stats",
+  parameters: z.object({
+    ownerEmail: z.string(),
+    cutOffDate: z.number(),
+  }),
+  data: z.object({
+    totalEmails: z.number(),
+    readEmails: z.number(),
+    sentEmails: z.number(),
+    archivedEmails: z.number(),
+    unsubscribeEmails: z.number(),
   }),
 });

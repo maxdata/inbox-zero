@@ -17,9 +17,13 @@ import { Tag } from "@/components/Tag";
 import { toastError, toastSuccess } from "@/components/Toast";
 import { Toggle } from "@/components/Toggle";
 import { SectionDescription, SectionHeader } from "@/components/Typography";
-import { GmailLabel, GmailLabels, useGmail } from "@/providers/GmailProvider";
+import {
+  GmailLabel,
+  GmailLabels,
+  GmailProvider,
+  useGmail,
+} from "@/providers/GmailProvider";
 import { createLabelAction, updateLabels } from "@/utils/actions";
-import { PlusSmallIcon } from "@heroicons/react/24/outline";
 import { useModal, Modal } from "@/components/Modal";
 import { type Label } from "@prisma/client";
 import { postRequest } from "@/utils/api";
@@ -28,6 +32,7 @@ import {
   CreateLabelResponse,
 } from "@/app/api/google/labels/create/controller";
 import { UserLabelsResponse } from "@/app/api/user/labels/route";
+import { PlusIcon } from "lucide-react";
 
 const recommendedLabels = ["Newsletter", "Receipt", "Calendar"];
 
@@ -42,9 +47,11 @@ export const LabelsSection = () => {
     useSwr<UserLabelsResponse>("/api/user/labels");
 
   return (
-    <LoadingContent loading={isLoading} error={error}>
-      {data && <LabelsSectionForm dbLabels={data} />}
-    </LoadingContent>
+    <GmailProvider>
+      <LoadingContent loading={isLoading} error={error}>
+        {data && <LabelsSectionForm dbLabels={data} />}
+      </LoadingContent>
+    </GmailProvider>
   );
 };
 
@@ -81,7 +88,7 @@ function LabelsSectionFormInner(props: {
             ...l,
           };
         }),
-      (l) => (l.enabled ? 0 : 1)
+      (l) => (l.enabled ? 0 : 1),
     );
   }, [gmailLabels, dbLabels]);
 
@@ -91,7 +98,7 @@ function LabelsSectionFormInner(props: {
         [`toggle-${l.id}`, l.enabled],
         [`description-${l.id}`, l.description],
       ];
-    })
+    }),
   );
 
   const {
@@ -108,14 +115,14 @@ function LabelsSectionFormInner(props: {
     (label) =>
       !Object.values(gmailLabels || {})
         .map((l) => l.name.toLowerCase())
-        .find((l) => l.indexOf(label.toLowerCase()) > -1)
+        .find((l) => l.indexOf(label.toLowerCase()) > -1),
   );
 
   return (
     <FormSection>
       <FormSectionLeft
         title="Labels"
-        description="The labels in your inbox help you organize your emails. You can create new labels, edit existing ones, or delete them."
+        description="The labels in your inbox help you organize your emails."
       />
 
       <div className="flex items-start md:col-span-2">
@@ -125,7 +132,6 @@ function LabelsSectionFormInner(props: {
             Labels help our AI properly categorize your emails. You can add a
             description to help the AI decide how to make use of each one. We
             will only make use of enabled labels. Visit Gmail to delete labels.
-            Inbox Zero
           </SectionDescription>
           <div className="mt-2">
             <AddLabelModal />
@@ -136,7 +142,7 @@ function LabelsSectionFormInner(props: {
                 const formLabels = userLabels.map((l) => {
                   const toggle = getValues(`toggle-${l.id}`);
                   const description = formData.get(
-                    `description-${l.id}`
+                    `description-${l.id}`,
                   ) as string;
 
                   return {
@@ -228,7 +234,7 @@ function LabelsSectionFormInner(props: {
                         <div className="relative flex w-full items-center justify-center">
                           {label}
                           <span className="absolute right-0 hidden group-hover:block">
-                            <PlusSmallIcon className="h-4 w-4 text-gray-500" />
+                            <PlusIcon className="h-4 w-4 text-gray-500" />
                           </span>
                         </div>
                       </Tag>
@@ -307,7 +313,7 @@ function AddLabelModal() {
             {
               name,
               description,
-            }
+            },
           );
 
           toastSuccess({
@@ -328,12 +334,12 @@ function AddLabelModal() {
           });
         }
       },
-      [closeModal, mutate]
+      [closeModal, mutate],
     );
 
   return (
     <>
-      <Button onClick={() => openModal()}>Add Label</Button>
+      <Button onClick={openModal}>Add Label</Button>
       <Modal isOpen={isModalOpen} hideModal={closeModal} title="Add Label">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">

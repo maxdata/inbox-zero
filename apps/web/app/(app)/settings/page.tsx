@@ -1,17 +1,19 @@
 import { FormWrapper } from "@/components/Form";
 import { AboutSection } from "@/app/(app)/settings/AboutSection";
-import { LabelsSection } from "@/app/(app)/settings/LabelsSection";
+// import { LabelsSection } from "@/app/(app)/settings/LabelsSection";
 import { DeleteSection } from "@/app/(app)/settings/DeleteSection";
-import { RulesSection } from "@/app/(app)/settings/RulesSection";
 import { ModelSection } from "@/app/(app)/settings/ModelSection";
+import { EmailUpdatesSection } from "@/app/(app)/settings/EmailUpdatesSection";
+import { MultiAccountSection } from "@/app/(app)/settings/MultiAccountSection";
 
 export default function Settings() {
   return (
     <FormWrapper>
       <AboutSection />
-      <RulesSection />
-      <LabelsSection />
+      {/* <LabelsSection /> */}
       <ModelSection />
+      <EmailUpdatesSection />
+      <MultiAccountSection />
       <DeleteSection />
     </FormWrapper>
   );

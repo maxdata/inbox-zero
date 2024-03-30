@@ -6,7 +6,10 @@ import {
   LucideIcon,
   MousePointer2Icon,
   Orbit,
+  ShieldHalfIcon,
   Sparkles,
+  SparklesIcon,
+  TagIcon,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -31,20 +34,20 @@ const features = [
   },
 ];
 
-export function Features() {
+function FeaturesOld() {
   return (
     <div className="bg-white py-24 sm:py-32" id="features">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl lg:text-center">
-          <h2 className="font-cal text-base font-semibold leading-7 text-blue-600">
+          <h2 className="font-cal text-base leading-7 text-blue-600">
             Handle emails faster
           </h2>
-          <p className="mt-2 font-cal text-3xl font-bold text-gray-900 sm:text-4xl">
+          <p className="mt-2 font-cal text-3xl text-gray-900 sm:text-4xl">
             Respond faster. Remove the clutter. Get your time back.
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
             Running a small business you{"'"}re constantly bombarded with the
-            same questions. Same your time and your customers time by having our
+            same questions. Save your time and your customers time by having our
             AI answer them for you.
           </p>
         </div>
@@ -79,7 +82,30 @@ export function Features() {
   );
 }
 
-function FeaturesWithImage(props: {
+export function Features() {
+  return (
+    <div className="bg-white py-24 sm:py-32" id="features">
+      <div className="mx-auto max-w-7xl px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl lg:text-center">
+          <h2 className="font-cal text-base leading-7 text-blue-600">
+            Privacy first
+          </h2>
+          <p className="mt-2 font-cal text-3xl text-gray-900 sm:text-4xl">
+            Approved by Google. Open Source. See exactly what our code does. Or
+            host it yourself.
+          </p>
+          <p className="mt-6 text-lg leading-8 text-gray-600">
+            Inbox Zero has undergone a thorough security process with Google to
+            ensure the protection of your emails. You can even self-host Inbox
+            Zero on your own infrastructure.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function FeaturesWithImage(props: {
   imageSide: "left" | "right";
   title: string;
   subtitle: string;
@@ -100,14 +126,14 @@ function FeaturesWithImage(props: {
               "lg:pt-4",
               props.imageSide === "left"
                 ? "lg:ml-auto lg:pl-4"
-                : "lg:mr-auto lg:pr-4"
+                : "lg:mr-auto lg:pr-4",
             )}
           >
             <div className="lg:max-w-lg">
-              <h2 className="font-cal text-base font-semibold leading-7 text-blue-600">
+              <h2 className="font-cal text-base leading-7 text-blue-600">
                 {props.title}
               </h2>
-              <p className="mt-2 font-cal text-3xl font-bold text-gray-900 sm:text-4xl">
+              <p className="mt-2 font-cal text-3xl text-gray-900 sm:text-4xl">
                 {props.subtitle}
               </p>
               <p className="mt-6 text-lg leading-8 text-gray-600">
@@ -134,7 +160,7 @@ function FeaturesWithImage(props: {
               "flex items-start",
               props.imageSide === "left"
                 ? "justify-end lg:order-first"
-                : "justify-start lg:order-last"
+                : "justify-start lg:order-last",
             )}
           >
             <div className="rounded-xl bg-gray-900/5 p-2 ring-1 ring-inset ring-gray-900/10 lg:rounded-2xl lg:p-4">
@@ -155,21 +181,21 @@ function FeaturesWithImage(props: {
 
 const featuresAutomations = [
   {
-    name: "Auto reply",
+    name: "Automate your replies",
     description:
-      "Automate what makes sense. Handle the rest yourself. You + AI is a match made in heaven.",
+      "Our AI agent will reply, forward, or archive emails based on the rules you provide it.",
     icon: Sparkles,
   },
   {
-    name: "Auto forward",
+    name: "Planning mode",
     description:
-      "Need certain emails forwarded to someone else? No problem. Inbox Zero can do that too.",
+      "Let our AI plan what to do for you. Accept or reject in a click. Turn on full automation once you're confident the AI can work on its own.",
     icon: Orbit,
   },
   {
-    name: "Auto archive",
+    name: "Instruct in plain English",
     description:
-      "Certain emails just don't need to hit your inbox. Label and archive them to clean up the noise. Gmail filters are great but limited. Let our AI filter the noise based on your instructions.",
+      "It's as easy as talking to an assistant or sending a prompt to ChatGPT.",
     icon: LineChart,
   },
 ];
@@ -177,12 +203,46 @@ const featuresAutomations = [
 export function FeaturesAutomation() {
   return (
     <FeaturesWithImage
-      imageSide="left"
+      imageSide="right"
       title="Automate your inbox"
       subtitle="Your AI assistant for email"
-      description="Keep getting the same emails over and over? Someone asking about your refund policy? Someone asking about sponsorship? Someone cold emailing you?Let Inbox Zero handle it."
-      image="/images/rules.png"
+      description="Keep getting emails that require the same response? Let Inbox Zero handle it."
+      image="/images/ai-automation.png"
       features={featuresAutomations}
+    />
+  );
+}
+
+const featuresColdEmailBlocker = [
+  {
+    name: "Block out the noise",
+    description:
+      "Automatically archive or label cold emails. Keep your inbox clean and focused on what matters.",
+    icon: ShieldHalfIcon,
+  },
+  {
+    name: "Adjust cold email prompt",
+    description:
+      "Tell Inbox Zero what constitutes a cold email for you. It will block them based on your instructions.",
+    icon: SparklesIcon,
+  },
+  {
+    name: "Label cold emails",
+    description:
+      "Automatically label cold emails so you can review them later. Keep your inbox clean and focused on what matters.",
+    icon: TagIcon,
+  },
+];
+
+export function FeaturesColdEmailBlocker() {
+  return (
+    <FeaturesWithImage
+      imageSide="left"
+      title="Cold Email Blocker"
+      subtitle="Automatically block cold emails"
+      description="Stop the spam. Automatically archive or label cold emails."
+      image="/images/cold-email-blocker.png"
+      features={featuresColdEmailBlocker}
     />
   );
 }
@@ -215,7 +275,7 @@ export function FeaturesStats() {
       title="Inbox Analytics"
       subtitle="Understand your inbox"
       description="Understanding your inbox is the first step to dealing with it. Understand what is filling up your inbox. Then figure out an action plan to deal with it."
-      image="/images/stats.png"
+      image="/images/analytics.png"
       features={featuresStats}
     />
   );
@@ -246,7 +306,7 @@ export function FeaturesUnsubscribe() {
   return (
     <FeaturesWithImage
       imageSide="left"
-      title="Newsletter Management"
+      title="Newsletter Cleaner"
       subtitle="Clean up your subscriptions"
       description="See all newsletter and marketing subscriptions in one place. Unsubscribe in a click."
       image="/images/newsletters.png"

@@ -1,14 +1,17 @@
 import { type gmail_v1 } from "googleapis";
 import { draftEmail, sendEmail } from "@/utils/gmail/mail";
-import { ActionType } from "@prisma/client";
+import { ActionType, ExecutedAction } from "@prisma/client";
 import { PartialRecord } from "@/utils/types";
 import { ActBodyWithHtml } from "@/app/api/ai/act/validation";
 import { labelThread } from "@/utils/gmail/label";
+import { getUserLabel } from "@/utils/label";
+import { markSpam } from "@/utils/gmail/spam";
 
 type ActionFunction = (
   gmail: gmail_v1.Gmail,
   email: ActBodyWithHtml["email"],
-  args: any
+  args: any,
+  userEmail: string,
 ) => Promise<any>;
 
 type ActionFunctionDef = {
@@ -180,6 +183,17 @@ const FORWARD_EMAIL: ActionFunctionDef = {
   action: ActionType.FORWARD,
 };
 
+const MARK_SPAM: ActionFunctionDef = {
+  name: "mark_spam",
+  description: "Mark as spam.",
+  parameters: {
+    type: "object",
+    properties: {},
+    required: [],
+  },
+  action: ActionType.MARK_SPAM,
+};
+
 // const ASK_FOR_MORE_INFORMATION: ActionFunctionDef = {
 //   name: "ask_for_more_information",
 //   description: "Ask for more information on how to handle the email.",
@@ -211,8 +225,7 @@ export const actionFunctionDefs: Record<ActionType, ActionFunctionDef> = {
   [ActionType.REPLY]: REPLY_TO_EMAIL,
   [ActionType.SEND_EMAIL]: SEND_EMAIL,
   [ActionType.FORWARD]: FORWARD_EMAIL,
-  [ActionType.SUMMARIZE]: {} as any,
-  [ActionType.MARK_SPAM]: {} as any,
+  [ActionType.MARK_SPAM]: MARK_SPAM,
   // [ActionType.ADD_TO_DO]: ADD_TO_DO,
   // [ActionType.CALL_WEBHOOK]: CALL_WEBHOOK,
   // ASK_FOR_MORE_INFORMATION
@@ -238,11 +251,24 @@ const archive: ActionFunction = async (gmail, email) => {
   });
 };
 
-const label: ActionFunction = async (gmail, email, args: { label: string }) => {
+const label: ActionFunction = async (
+  gmail,
+  email,
+  args: { label: string },
+  userEmail,
+) => {
+  const label = await getUserLabel({
+    gmail,
+    email: userEmail,
+    labelName: args.label,
+  });
+
+  if (!label?.id) return;
+
   await labelThread({
     gmail,
     threadId: email.threadId,
-    labelId: args.label,
+    labelId: label.id,
   });
 };
 
@@ -253,7 +279,7 @@ const draft: ActionFunction = async (
     to: string;
     subject: string;
     content: string;
-  }
+  },
 ) => {
   await draftEmail(gmail, {
     subject: args.subject,
@@ -276,7 +302,7 @@ const send_email: ActionFunction = async (
     content: string;
     cc: string;
     bcc: string;
-  }
+  },
 ) => {
   await sendEmail(gmail, {
     to: args.to,
@@ -294,7 +320,7 @@ const reply: ActionFunction = async (
     content: string;
     cc: string; // TODO - do we allow the ai to adjust this?
     bcc: string;
-  }
+  },
 ) => {
   await sendEmail(gmail, {
     replyToEmail: {
@@ -318,7 +344,7 @@ const forward: ActionFunction = async (
     content: string;
     cc: string;
     bcc: string;
-  }
+  },
 ) => {
   // We may need to make sure the AI isn't adding the extra forward content on its own
   // TODO handle HTML emails
@@ -327,6 +353,11 @@ const forward: ActionFunction = async (
     to: args.to,
     cc: args.cc,
     bcc: args.bcc,
+    replyToEmail: {
+      threadId: email.threadId,
+      references: "",
+      headerMessageId: "",
+    },
     subject: `Fwd: ${email.subject}`,
     messageText: `${args.content ?? ""}
 
@@ -342,6 +373,13 @@ To: ${email.to}
 
 ${email.textHtml || email.textPlain}`,
   });
+};
+
+const mark_spam: ActionFunction = async (
+  gmail: gmail_v1.Gmail,
+  email: ActBodyWithHtml["email"],
+) => {
+  return await markSpam({ gmail, threadId: email.threadId });
 };
 
 // const add_to_do: ActionFunction = async (_gmail: gmail_v1.Gmail, args: { email_id: string, title: string }) => {};
@@ -362,22 +400,25 @@ export type ActionProperty = (typeof ACTION_PROPERTIES)[number];
 export const runActionFunction = async (
   gmail: gmail_v1.Gmail,
   email: ActBodyWithHtml["email"],
-  action: ActionType,
-  args: PartialRecord<ActionProperty, string>
+  action: ActionItem,
+  userEmail: string,
 ): Promise<any> => {
-  switch (action) {
+  const { type, ...args } = action;
+  switch (type) {
     case ActionType.ARCHIVE:
-      return archive(gmail, email, args);
+      return archive(gmail, email, args, userEmail);
     case ActionType.LABEL:
-      return label(gmail, email, args);
+      return label(gmail, email, args, userEmail);
     case ActionType.DRAFT_EMAIL:
-      return draft(gmail, email, args);
+      return draft(gmail, email, args, userEmail);
     case ActionType.REPLY:
-      return reply(gmail, email, args);
+      return reply(gmail, email, args, userEmail);
     case ActionType.SEND_EMAIL:
-      return send_email(gmail, email, args);
+      return send_email(gmail, email, args, userEmail);
     case ActionType.FORWARD:
-      return forward(gmail, email, args);
+      return forward(gmail, email, args, userEmail);
+    case ActionType.MARK_SPAM:
+      return mark_spam(gmail, email, args, userEmail);
     // case "ask_for_more_information":
     //   return;
     // case "add_to_do":
@@ -387,4 +428,14 @@ export const runActionFunction = async (
     default:
       throw new Error(`Unknown action: ${action}`);
   }
+};
+
+export type ActionItem = {
+  type: ExecutedAction["type"];
+  label?: ExecutedAction["label"];
+  subject?: ExecutedAction["subject"];
+  content?: ExecutedAction["content"];
+  to?: ExecutedAction["to"];
+  cc?: ExecutedAction["cc"];
+  bcc?: ExecutedAction["bcc"];
 };

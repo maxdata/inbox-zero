@@ -1,31 +1,33 @@
-import { gmail_v1 } from "googleapis";
+import { type gmail_v1 } from "googleapis";
 import { z } from "zod";
 import uniq from "lodash/uniq";
-import { UserAIFields, getOpenAI } from "@/utils/openai";
-import { PartialRecord, RuleWithActions } from "@/utils/types";
+import { UserAIFields } from "@/utils/llms/types";
+import { RuleWithActions } from "@/utils/types";
 import {
   ACTION_PROPERTIES,
+  ActionItem,
   ActionProperty,
   actionFunctionDefs,
   runActionFunction,
 } from "@/utils/ai/actions";
 import prisma from "@/utils/prisma";
-import { deletePlan, savePlan } from "@/utils/redis/plan";
-import { Action, Rule } from "@prisma/client";
+import { Rule } from "@prisma/client";
 import { ActBody, ActBodyWithHtml } from "@/app/api/ai/act/validation";
-import { saveUsage } from "@/utils/redis/usage";
 import { getOrCreateInboxZeroLabel } from "@/utils/label";
 import { labelThread } from "@/utils/gmail/label";
-import { DEFAULT_AI_MODEL } from "@/utils/config";
-import { ChatCompletionCreateParams } from "openai/resources/chat";
+import { ChatCompletionCreateParams } from "openai/resources/index";
 import { parseJSON, parseJSONWithMultilines } from "@/utils/json";
+import { saveAiUsage } from "@/utils/usage";
+import { AI_GENERATED_FIELD_VALUE } from "@/utils/config";
+import { parseEmail } from "@/utils/mail";
+import {
+  chatCompletion,
+  chatCompletionTools,
+  getAiProviderAndModel,
+} from "@/utils/llms";
+import { ExecutedRuleStatus } from "@prisma/client";
 
-export type ActResponse = Awaited<ReturnType<typeof planAct>>;
-
-type PlannedAction = {
-  actions: Pick<Action, "type">[];
-  args: PartialRecord<ActionProperty, string>;
-};
+export type ActResponse = Awaited<ReturnType<typeof planOrExecuteAct>>;
 
 export const REQUIRES_MORE_INFO = "requires_more_information";
 
@@ -39,11 +41,12 @@ export async function getAiResponse(
   options: {
     email: Pick<ActBody["email"], "from" | "cc" | "replyTo" | "subject"> & {
       content: string;
+      snippet: string;
     };
     userAbout: string;
     userEmail: string;
-    functions: ChatCompletionCreateParams.Function[];
-  } & UserAIFields
+    functions: { description?: string }[];
+  } & UserAIFields,
 ) {
   const { email, userAbout, userEmail, functions } = options;
 
@@ -51,8 +54,6 @@ export async function getAiResponse(
     {
       role: "system" as const,
       content: `You are an AI assistant that helps people manage their emails.
-Never put placeholders in your email responses.
-Do not mention you are an AI assistant when responding to people.
 It's better not to act if you don't know how.
 
 These are the rules you can select from:
@@ -78,39 +79,71 @@ Reply to: ${email.replyTo}
 CC: ${email.cc}
 Subject: ${email.subject}
 Body:
-${email.content}`,
+${email.snippet}`,
     },
   ];
 
-  const model = options.aiModel || DEFAULT_AI_MODEL;
-  const aiResponse = await getOpenAI(
-    options.openAIApiKey
-  ).chat.completions.create({
+  const { model, provider } = getAiProviderAndModel(
+    options.aiProvider,
+    options.aiModel,
+  );
+  const aiResponse = await chatCompletion(
+    provider,
     model,
+    options.openAIApiKey,
     messages,
-    temperature: 0,
-  });
+    { jsonResponse: true },
+  );
+  // tools: [
+  //   {
+  //     type: "function",
+  //     function: {
+  //       name: "selectRule",
+  //       description: "Select a rule to apply to the email.",
+  //       parameters: {
+  //         type: "object",
+  //         properties: {
+  //           ruleNumber: {
+  //             type: "number",
+  //             description: "The number of the rule to apply.",
+  //           },
+  //           reason: {
+  //             type: "string",
+  //             description: "The reason for choosing this rule.",
+  //           },
+  //         },
+  //         required: ["ruleNumber"],
+  //       },
+  //     },
+  //   },
+  // ],
 
-  if (aiResponse.usage)
-    await saveUsage({ email: userEmail, usage: aiResponse.usage, model });
+  if (aiResponse.usage) {
+    await saveAiUsage({
+      email: userEmail,
+      usage: aiResponse.usage,
+      provider: options.aiProvider,
+      model,
+      label: "Choose rule",
+    });
+  }
 
   const responseSchema = z.object({
     rule: z.number(),
     reason: z.string().optional(),
   });
 
-  if (!aiResponse.choices[0].message.content) return;
+  if (!aiResponse.response) return;
 
   try {
-    return responseSchema.parse(
-      parseJSON(aiResponse.choices[0].message.content)
-    );
+    const result = responseSchema.parse(parseJSON(aiResponse.response));
+    return result;
   } catch (error) {
     console.warn(
       "Error parsing data.\nResponse:",
-      aiResponse?.choices?.[0]?.message?.content,
+      aiResponse?.response,
       "\nError:",
-      error
+      error,
     );
     return;
   }
@@ -123,11 +156,10 @@ async function getArgsAiResponse(
     };
     userAbout: string;
     userEmail: string;
-    functions: ChatCompletionCreateParams.Function[];
     selectedFunction: ChatCompletionCreateParams.Function;
-  } & UserAIFields
+  } & UserAIFields,
 ) {
-  const { email, userAbout, userEmail, functions, selectedFunction } = options;
+  const { email, userAbout, userEmail, selectedFunction } = options;
 
   const messages = [
     {
@@ -162,21 +194,43 @@ ${email.content}`,
     },
   ];
 
-  const model = options.aiModel || DEFAULT_AI_MODEL;
-  const aiResponse = await getOpenAI(
-    options.openAIApiKey
-  ).chat.completions.create({
+  const { model, provider } = getAiProviderAndModel(
+    options.aiProvider,
+    options.aiModel,
+  );
+
+  console.log("Calling chat completion tools");
+
+  const aiResponse = await chatCompletionTools(
+    provider,
     model,
+    options.openAIApiKey,
     messages,
-    functions,
-    function_call: "auto",
-    temperature: 0,
-  });
+    {
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: selectedFunction.name,
+            description: "Act on the email using the selected rule.",
+            parameters: selectedFunction.parameters,
+          },
+        },
+      ],
+    },
+  );
 
-  if (aiResponse.usage)
-    await saveUsage({ email: userEmail, usage: aiResponse.usage, model });
+  if (aiResponse.usage) {
+    await saveAiUsage({
+      email: userEmail,
+      usage: aiResponse.usage,
+      provider: options.aiProvider,
+      model,
+      label: "Args for rule",
+    });
+  }
 
-  const functionCall = aiResponse?.choices?.[0]?.message.function_call;
+  const functionCall = aiResponse.functionCall;
 
   if (!functionCall?.name) return;
   if (functionCall.name === REQUIRES_MORE_INFO) return;
@@ -184,21 +238,27 @@ ${email.content}`,
   return functionCall;
 }
 
+// This finds the properties that must be generated by the AI.
+// NOTE: if two actions require the same field, the AI will generate the same value for both.
+// For example, if two actions require the "content" field, the AI will generate the same content for both.
+// We probably want to improve this in the future. So that action1.content and action2.content are different.
 function getFunctionsFromRules(options: { rules: RuleWithActions[] }) {
   const rulesWithProperties = options.rules.map((rule, i) => {
-    const prefilledValues: PartialRecord<ActionProperty, string | null> = {};
+    const toAiGenerateValues: ActionProperty[] = [];
 
     rule.actions.forEach((action) => {
       ACTION_PROPERTIES.forEach((property) => {
-        if (action[property]) {
-          prefilledValues[property] = action[property];
+        if (action[property] === AI_GENERATED_FIELD_VALUE) {
+          toAiGenerateValues.push(property);
         }
       });
     });
 
+    const shouldAiGenerateArgs = toAiGenerateValues.length > 0;
+
     return {
       rule,
-      prefilledValues,
+      shouldAiGenerateArgs,
       name: `rule_${i + 1}`,
       description: rule.instructions,
       parameters: {
@@ -216,12 +276,12 @@ function getFunctionsFromRules(options: { rules: RuleWithActions[] }) {
               type: string;
               description: string;
             };
-          }
+          },
         ),
         required: uniq(
           rule.actions.flatMap((action) => {
             return actionFunctionDefs[action.type].parameters.required;
-          })
+          }),
         ),
       },
     };
@@ -235,7 +295,7 @@ function getFunctionsFromRules(options: { rules: RuleWithActions[] }) {
       properties: {},
       required: [],
     },
-    prefilledValues: {},
+    shouldAiGenerateArgs: false,
     rule: {} as any,
   });
 
@@ -251,12 +311,19 @@ function getFunctionsFromRules(options: { rules: RuleWithActions[] }) {
 
 export async function planAct(
   options: {
-    email: ActBody["email"] & { content: string };
+    email: ActBody["email"] & { content: string; snippet: string };
     rules: RuleWithActions[];
     userAbout: string;
     userEmail: string;
-  } & UserAIFields
-): Promise<{ rule: Rule; plannedAction: PlannedAction } | undefined> {
+  } & UserAIFields,
+): Promise<
+  | {
+      rule: Rule;
+      actionItems: ActionItem[];
+      reason?: string;
+    }
+  | { rule?: undefined; actionItems?: undefined; reason?: string }
+> {
   const { email, rules } = options;
 
   const { functions, rulesWithProperties } = getFunctionsFromRules({ rules });
@@ -266,6 +333,7 @@ export async function planAct(
     userAbout: options.userAbout,
     userEmail: options.userEmail,
     functions,
+    aiProvider: options.aiProvider,
     aiModel: options.aiModel,
     openAIApiKey: options.openAIApiKey,
   });
@@ -273,61 +341,75 @@ export async function planAct(
   const ruleNumber = aiResponse ? aiResponse.rule - 1 : undefined;
   if (typeof ruleNumber !== "number") {
     console.warn("No rule selected");
-    return;
+    return { reason: aiResponse?.reason };
   }
 
   const selectedRule = rulesWithProperties[ruleNumber];
-  console.log("selectedRule", selectedRule);
+  console.log("selectedRule", selectedRule.name);
 
-  if (selectedRule.name === REQUIRES_MORE_INFO) return;
+  if (selectedRule.name === REQUIRES_MORE_INFO)
+    return { reason: aiResponse?.reason };
 
   // TODO may want to pass full email content to this function so it has maximum context to act on
-  const aiArgsResponse = await getArgsAiResponse({
-    email,
-    userAbout: options.userAbout,
-    userEmail: options.userEmail,
-    functions,
-    selectedFunction: selectedRule,
-    aiModel: options.aiModel,
-    openAIApiKey: options.openAIApiKey,
-  });
+  const aiArgsResponse = selectedRule.shouldAiGenerateArgs
+    ? await getArgsAiResponse({
+        email,
+        userAbout: options.userAbout,
+        userEmail: options.userEmail,
+        selectedFunction: selectedRule,
+        aiProvider: options.aiProvider,
+        aiModel: options.aiModel,
+        openAIApiKey: options.openAIApiKey,
+      })
+    : { arguments: undefined };
 
-  const aiGeneratedArgs = aiArgsResponse?.arguments
-    ? parseJSONWithMultilines(aiArgsResponse.arguments)
-    : undefined;
-
-  // use prefilled values where we have them
-  const args = {
-    ...aiGeneratedArgs,
-    ...selectedRule.prefilledValues,
-  };
+  const aiGeneratedArgs: Omit<ActionItem, "type"> | undefined =
+    aiArgsResponse?.arguments
+      ? parseJSONWithMultilines(aiArgsResponse.arguments)
+      : undefined;
 
   return {
-    plannedAction: {
-      actions: selectedRule.rule.actions,
-      args,
-    },
     rule: selectedRule.rule,
+    actionItems: selectedRule.rule.actions.map(
+      ({ type, label, subject, content, to, cc, bcc }) => {
+        // use prefilled values where we have them
+        return {
+          type,
+          label:
+            label === AI_GENERATED_FIELD_VALUE ? aiGeneratedArgs?.label : label,
+          subject:
+            subject === AI_GENERATED_FIELD_VALUE
+              ? aiGeneratedArgs?.subject
+              : subject,
+          content:
+            content === AI_GENERATED_FIELD_VALUE
+              ? aiGeneratedArgs?.content
+              : content,
+          to: to === AI_GENERATED_FIELD_VALUE ? aiGeneratedArgs?.to : to,
+          cc: cc === AI_GENERATED_FIELD_VALUE ? aiGeneratedArgs?.cc : cc,
+          bcc: bcc === AI_GENERATED_FIELD_VALUE ? aiGeneratedArgs?.bcc : bcc,
+        };
+      },
+    ),
+    reason: aiResponse?.reason,
   };
 }
 
 export async function executeAct(options: {
   gmail: gmail_v1.Gmail;
-  act: PlannedAction;
+  actionItems: ActionItem[];
   email: ActBodyWithHtml["email"];
-  userId: string;
   userEmail: string;
-  automated: boolean;
-  ruleId: string;
+  executedRuleId: string;
 }) {
-  const { gmail, email, act, automated, userId, userEmail, ruleId } = options;
+  const { gmail, email, actionItems, userEmail, executedRuleId } = options;
 
-  console.log("Executing act:", JSON.stringify(act, null, 2));
+  console.log("Executing act:", JSON.stringify(actionItems, null, 2));
 
   await Promise.all(
-    act.actions.map(async (action) => {
-      return runActionFunction(gmail, email, action.type, act.args);
-    })
+    actionItems.map(async (action) => {
+      return runActionFunction(gmail, email, action, userEmail);
+    }),
   );
 
   async function labelActed() {
@@ -347,80 +429,115 @@ export async function executeAct(options: {
   }
 
   await Promise.all([
-    prisma.executedRule.create({
-      data: {
-        actions: act.actions.map((a) => a.type),
-        data: act.args,
-        messageId: email.messageId,
-        threadId: email.threadId,
-        automated,
-        userId,
-        ruleId,
-      },
+    prisma.executedRule.update({
+      where: { id: executedRuleId },
+      data: { status: ExecutedRuleStatus.APPLIED },
     }),
     labelActed(),
-    // TODO mark plan as acted upon
-    deletePlan({ userId, threadId: email.threadId }),
   ]);
 }
 
-export async function planOrExecuteAct(
-  options: {
-    gmail: gmail_v1.Gmail;
-    email: ActBodyWithHtml["email"] & { content: string };
-    rules: RuleWithActions[];
-    allowExecute: boolean;
-    forceExecute?: boolean;
-    userId: string;
-    userEmail: string;
-    userAbout: string;
-    automated: boolean;
-  } & UserAIFields
-) {
+type PlanOrExecuteActOptions = {
+  gmail: gmail_v1.Gmail;
+  email: ActBodyWithHtml["email"];
+  rules: RuleWithActions[];
+  allowExecute: boolean;
+  forceExecute?: boolean;
+  userId: string;
+  userEmail: string;
+  userAbout: string;
+  automated: boolean;
+} & UserAIFields;
+
+export async function planOrExecuteAct(options: PlanOrExecuteActOptions) {
   if (!options.rules.length) return;
 
-  const plannedAct = await planAct(options);
+  const content =
+    (options.email.textHtml &&
+      parseEmail(options.email.textHtml, false, null)) ||
+    options.email.textPlain ||
+    options.email.snippet;
 
-  console.log("Planned act:", plannedAct);
+  const plannedAct = await planAct({
+    ...options,
+    email: {
+      ...options.email,
+      content: content || "",
+      snippet: options.email.snippet || "",
+    },
+  });
 
-  if (!plannedAct) {
-    await savePlan({
-      userId: options.userId,
-      threadId: options.email.threadId,
-      plan: {
-        createdAt: new Date(),
-        messageId: options.email.messageId,
+  console.log("Planned act:", plannedAct.rule?.name, plannedAct.actionItems);
+
+  // no rule to apply to this thread
+  if (!plannedAct.rule) {
+    await prisma.executedRule.upsert({
+      where: {
+        unique_user_thread_message: {
+          userId: options.userId,
+          threadId: options.email.threadId,
+          messageId: options.email.messageId,
+        },
+      },
+      create: {
         threadId: options.email.threadId,
-        rule: null,
+        messageId: options.email.messageId,
+        automated: options.automated,
+        reason: plannedAct.reason,
+        status: ExecutedRuleStatus.SKIPPED,
+        user: { connect: { id: options.userId } },
+      },
+      update: {
+        threadId: options.email.threadId,
+        messageId: options.email.messageId,
+        automated: options.automated,
+        reason: plannedAct.reason,
+        status: ExecutedRuleStatus.SKIPPED,
+        user: { connect: { id: options.userId } },
       },
     });
 
-    return;
+    return plannedAct;
   }
 
   const shouldExecute =
-    options.allowExecute && (plannedAct.rule?.automate || options.forceExecute);
+    options.allowExecute && (plannedAct.rule.automate || options.forceExecute);
 
   console.log("shouldExecute:", shouldExecute);
 
-  if (shouldExecute) {
+  const data = {
+    actionItems: { createMany: { data: plannedAct.actionItems } },
+    messageId: options.email.messageId,
+    threadId: options.email.threadId,
+    automated: plannedAct.rule.automate,
+    status: ExecutedRuleStatus.PENDING,
+    reason: plannedAct.reason,
+    rule: plannedAct.rule.id
+      ? { connect: { id: plannedAct.rule.id } }
+      : undefined,
+    user: { connect: { id: options.userId } },
+  };
+
+  const executedRule = options.email.messageId
+    ? await prisma.executedRule.upsert({
+        where: {
+          unique_user_thread_message: {
+            userId: options.userId,
+            threadId: options.email.threadId,
+            messageId: options.email.messageId,
+          },
+        },
+        create: data,
+        update: data,
+      })
+    : undefined;
+
+  if (shouldExecute && executedRule) {
     await executeAct({
       ...options,
-      act: plannedAct.plannedAction,
+      actionItems: plannedAct.actionItems,
       email: options.email,
-      ruleId: plannedAct.rule.id,
-    });
-  } else {
-    await savePlan({
-      userId: options.userId,
-      threadId: options.email.threadId,
-      plan: {
-        createdAt: new Date(),
-        messageId: options.email.messageId,
-        threadId: options.email.threadId,
-        rule: { ...plannedAct.rule, actions: plannedAct.plannedAction.actions },
-        functionArgs: plannedAct.plannedAction.args,
-      },
+      executedRuleId: executedRule.id,
     });
   }
 

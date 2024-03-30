@@ -1,47 +1,83 @@
 import { useMemo } from "react";
-import {
-  ArchiveBoxArrowDownIcon,
-  SparklesIcon,
-} from "@heroicons/react/24/outline";
 import { ButtonGroup } from "@/components/ButtonGroup";
 import { LoadingMiniSpinner } from "@/components/Loading";
-import { OrbitIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  CheckCircleIcon,
+  OrbitIcon,
+  SparklesIcon,
+  Trash2Icon,
+  XCircleIcon,
+} from "lucide-react";
 
 export function ActionButtonsBulk(props: {
   isPlanning: boolean;
   isCategorizing: boolean;
   isArchiving: boolean;
+  isDeleting: boolean;
+  isApproving: boolean;
+  isRejecting: boolean;
   onPlanAiAction: () => void;
   onAiCategorize: () => void;
   onArchive: () => void;
+  onDelete: () => void;
+  onApprove: () => void;
+  onReject: () => void;
 }) {
   const {
     isPlanning,
     isCategorizing,
     isArchiving,
+    isDeleting,
+    isApproving,
+    isRejecting,
     onPlanAiAction,
     onAiCategorize,
     onArchive,
+    onDelete,
+    onApprove,
+    onReject,
   } = props;
 
   const buttons = useMemo(
     () => [
+      {
+        tooltip: "Run AI Rules",
+        onClick: onPlanAiAction,
+        icon: isPlanning ? (
+          <LoadingMiniSpinner />
+        ) : (
+          <SparklesIcon className="h-4 w-4 text-gray-700" aria-hidden="true" />
+        ),
+      },
+      {
+        tooltip: "Approve AI Action",
+        onClick: onApprove,
+        icon: isApproving ? (
+          <LoadingMiniSpinner />
+        ) : (
+          <CheckCircleIcon
+            className="h-4 w-4 text-gray-700"
+            aria-hidden="true"
+          />
+        ),
+      },
+      {
+        tooltip: "Reject AI Action",
+        onClick: onReject,
+        icon: isRejecting ? (
+          <LoadingMiniSpinner />
+        ) : (
+          <XCircleIcon className="h-4 w-4 text-gray-700" aria-hidden="true" />
+        ),
+      },
       {
         tooltip: "AI Categorize",
         onClick: onAiCategorize,
         icon: isCategorizing ? (
           <LoadingMiniSpinner />
         ) : (
-          <OrbitIcon className="h-5 w-5 text-gray-700" aria-hidden="true" />
-        ),
-      },
-      {
-        tooltip: "Plan AI action",
-        onClick: onPlanAiAction,
-        icon: isPlanning ? (
-          <LoadingMiniSpinner />
-        ) : (
-          <SparklesIcon className="h-5 w-5 text-gray-700" aria-hidden="true" />
+          <OrbitIcon className="h-4 w-4 text-gray-700" aria-hidden="true" />
         ),
       },
       {
@@ -50,10 +86,16 @@ export function ActionButtonsBulk(props: {
         icon: isArchiving ? (
           <LoadingMiniSpinner />
         ) : (
-          <ArchiveBoxArrowDownIcon
-            className="h-5 w-5 text-gray-700"
-            aria-hidden="true"
-          />
+          <ArchiveIcon className="h-4 w-4 text-gray-700" aria-hidden="true" />
+        ),
+      },
+      {
+        tooltip: "Delete",
+        onClick: onDelete,
+        icon: isDeleting ? (
+          <LoadingMiniSpinner />
+        ) : (
+          <Trash2Icon className="h-4 w-4 text-gray-700" aria-hidden="true" />
         ),
       },
     ],
@@ -61,10 +103,16 @@ export function ActionButtonsBulk(props: {
       isArchiving,
       isCategorizing,
       isPlanning,
+      isDeleting,
+      isApproving,
+      isRejecting,
       onAiCategorize,
       onArchive,
       onPlanAiAction,
-    ]
+      onDelete,
+      onApprove,
+      onReject,
+    ],
   );
 
   return <ButtonGroup buttons={buttons} />;

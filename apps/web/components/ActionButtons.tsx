@@ -1,25 +1,26 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
-  ArchiveBoxArrowDownIcon,
-  ArrowTopRightOnSquareIcon,
-  ChatBubbleBottomCenterIcon,
+  ArchiveIcon,
+  Trash2Icon,
+  ExternalLinkIcon,
+  OrbitIcon,
   SparklesIcon,
-} from "@heroicons/react/24/outline";
-import { OrbitIcon } from "lucide-react";
+} from "lucide-react";
 import { ButtonGroup } from "@/components/ButtonGroup";
 import { LoadingMiniSpinner } from "@/components/Loading";
 import { getGmailUrl } from "@/utils/url";
+import { onTrashThread } from "@/utils/actions-client";
 
 export function ActionButtons(props: {
   threadId: string;
   isPlanning: boolean;
   isCategorizing: boolean;
-  isArchiving: boolean;
+  shadow?: boolean;
   onPlanAiAction: () => void;
   onAiCategorize: () => void;
-  onReply: () => void;
   onArchive: () => void;
+  refetch: () => void;
 }) {
   const session = useSession();
   const email = session.data?.user.email;
@@ -29,10 +30,9 @@ export function ActionButtons(props: {
     onArchive,
     onPlanAiAction,
     onAiCategorize,
-    onReply,
     isCategorizing,
     isPlanning,
-    isArchiving,
+    refetch,
   } = props;
 
   const openInGmail = useCallback(() => {
@@ -41,26 +41,36 @@ export function ActionButtons(props: {
     window.open(url, "_blank");
   }, [threadId, email]);
 
+  const [isTrashing, setIsTrashing] = useState(false);
+
+  // TODO lift this up to the parent component to be consistent / to support bulk trash
+  // TODO show loading toast
+  const onTrash = useCallback(async () => {
+    setIsTrashing(true);
+    await onTrashThread(threadId);
+    refetch();
+    setIsTrashing(false);
+  }, [threadId, refetch]);
+
   const buttons = useMemo(
     () => [
       {
         tooltip: "Open in Gmail",
         onClick: openInGmail,
         icon: (
-          <ArrowTopRightOnSquareIcon
-            className="h-5 w-5 text-gray-700"
+          <ExternalLinkIcon
+            className="h-4 w-4 text-gray-700"
             aria-hidden="true"
           />
         ),
       },
       {
-        tooltip: "Reply",
-        onClick: onReply,
-        icon: (
-          <ChatBubbleBottomCenterIcon
-            className="h-5 w-5 text-gray-700"
-            aria-hidden="true"
-          />
+        tooltip: "Run AI Rules",
+        onClick: onPlanAiAction,
+        icon: isPlanning ? (
+          <LoadingMiniSpinner />
+        ) : (
+          <SparklesIcon className="h-4 w-4 text-gray-700" aria-hidden="true" />
         ),
       },
       {
@@ -69,42 +79,38 @@ export function ActionButtons(props: {
         icon: isCategorizing ? (
           <LoadingMiniSpinner />
         ) : (
-          <OrbitIcon className="h-5 w-5 text-gray-700" aria-hidden="true" />
-        ),
-      },
-      {
-        tooltip: "Plan AI action",
-        onClick: onPlanAiAction,
-        icon: isPlanning ? (
-          <LoadingMiniSpinner />
-        ) : (
-          <SparklesIcon className="h-5 w-5 text-gray-700" aria-hidden="true" />
+          <OrbitIcon className="h-4 w-4 text-gray-700" aria-hidden="true" />
         ),
       },
       {
         tooltip: "Archive",
         onClick: onArchive,
-        icon: isArchiving ? (
+        icon: (
+          <ArchiveIcon className="h-4 w-4 text-gray-700" aria-hidden="true" />
+        ),
+      },
+      // may remove later
+      {
+        tooltip: "Delete",
+        onClick: onTrash,
+        icon: isTrashing ? (
           <LoadingMiniSpinner />
         ) : (
-          <ArchiveBoxArrowDownIcon
-            className="h-5 w-5 text-gray-700"
-            aria-hidden="true"
-          />
+          <Trash2Icon className="h-4 w-4 text-gray-700" aria-hidden="true" />
         ),
       },
     ],
     [
+      onTrash,
+      isTrashing,
       onArchive,
-      isArchiving,
       onPlanAiAction,
       isPlanning,
       onAiCategorize,
       isCategorizing,
-      onReply,
       openInGmail,
-    ]
+    ],
   );
 
-  return <ButtonGroup buttons={buttons} />;
+  return <ButtonGroup buttons={buttons} shadow={props.shadow} />;
 }

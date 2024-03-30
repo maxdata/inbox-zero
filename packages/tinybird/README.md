@@ -33,7 +33,7 @@ Then within Docker:
 cd mnt/data
 ```
 
-Now you can run `tb` commands.
+Now you can run `tb` commands. First you'll want to run `tb auth` to sign in.
 
 ## Datasource
 
@@ -51,4 +51,11 @@ tb push pipes
 tb push pipes/get_emails_by_period.pipe
 # or to force changes:
 tb push pipes --force --no-check
+```
+
+## Switch workspace
+
+```sh
+tb workspace ls # list workspaces
+tb workspace use <workspace_name>
 ```

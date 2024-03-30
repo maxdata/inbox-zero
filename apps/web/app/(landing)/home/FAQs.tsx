@@ -2,16 +2,73 @@ const faqs = [
   {
     question: "Do you store my emails?",
     answer:
-      "No. We don't store any of your emails in our database. And even better, as our code is open-source you can check our code to see this is true. For full data privacy you can self-host your own instance of Inbox Zero.",
+      "We store a hashed version of your emails for our analytics feature. As our code is open-source you can check our code to see this for yourself. For full data privacy you can self-host your own instance of Inbox Zero.",
   },
   {
     question: "Is the code open-source?",
-    answer: "Yes! You can see the source code in our GitHub repository.",
+    answer: (
+      <>
+        Yes! You can see the source code in our{" "}
+        <a
+          href="/github"
+          target="_blank"
+          className="font-semibold hover:underline"
+        >
+          GitHub repo
+        </a>
+        .
+      </>
+    ),
   },
   {
     question: "Do you take feature requests?",
+    answer: (
+      <>
+        Yes! Post an issue on{" "}
+        <a
+          href="/github"
+          target="_blank"
+          className="font-semibold hover:underline"
+        >
+          GitHub
+        </a>{" "}
+        or{" "}
+        <a
+          href="mailto:elie@getinboxzero.com"
+          target="_blank"
+          className="font-semibold hover:underline"
+        >
+          email
+        </a>{" "}
+        us. We{"'"}re happy to hear how we can improve your email experience.
+      </>
+    ),
+  },
+  {
+    question: "Can I still use Inbox Zero alongside my current email client?",
     answer:
-      "Yes! Post an issue on GitHub, reach us over email, or tweet us. We're happy to hear how we can improve your email experience.",
+      "Yes! Inbox Zero is intended to be used alongside your existing email client.",
+  },
+  {
+    question: "Which email providers does Inbox Zero support?",
+    answer:
+      "We only support Gmail and Google Workspace email accounts today. We may add support for other email providers such as Outlook in the future.",
+  },
+  {
+    question: "Do you offer refunds?",
+    answer: (
+      <>
+        If you don{"'"}t think we provided you with value send us an{" "}
+        <a
+          href="mailto:elie@getinboxzero.com"
+          target="_blank"
+          className="font-semibold hover:underline"
+        >
+          email
+        </a>{" "}
+        within 14 days of upgrading and we{"'"}ll refund you.
+      </>
+    ),
   },
 ];
 
@@ -21,7 +78,7 @@ export function FAQs() {
       className="mx-auto max-w-2xl divide-y divide-gray-900/10 px-6 pb-8 sm:pb-24 sm:pt-12 lg:max-w-7xl lg:px-8 lg:pb-32"
       id="faq"
     >
-      <h2 className="font-cal text-2xl font-bold leading-10 text-gray-900">
+      <h2 className="font-cal text-2xl leading-10 text-gray-900">
         Frequently asked questions
       </h2>
       <dl className="mt-10 space-y-8 divide-y divide-gray-900/10">

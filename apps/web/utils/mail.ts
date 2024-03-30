@@ -23,7 +23,12 @@ export function parseMessages(thread: ThreadWithPayloadMessages) {
     thread.messages?.map((message: MessageWithPayload) => {
       const parsedMessage = parseMessage(message);
       return {
-        ...message,
+        // ...message,
+        id: message.id,
+        threadId: message.threadId,
+        labelIds: message.labelIds,
+        snippet: message.snippet,
+        internalDate: message.internalDate,
         parsedMessage,
         // parsedReply: parseReply(
         //   parsedMessage.textPlain || parsedMessage.textHtml
@@ -53,7 +58,7 @@ function htmlToText(html: string, removeLinks = true, removeImages = true) {
   return text;
 }
 
-function truncate(str: string, length: number) {
+export function truncate(str: string, length: number) {
   return str.length > length ? str.slice(0, length) + "..." : str;
 }
 
@@ -62,14 +67,24 @@ function truncate(str: string, length: number) {
 export function parseEmail(
   html: string,
   extractReply = false,
-  maxLength = 2000
+  maxLength: number | null = 2000,
 ) {
   // 1. remove replies
   // 2. remove html
   // 3. truncate
 
   const text = htmlToText(extractReply ? parseReply(html) : html);
-  const truncatedText = truncate(text, maxLength);
+  const truncatedText = maxLength === null ? text : truncate(text, maxLength);
 
   return truncatedText;
+}
+
+export function getEmailClient(messageId: string) {
+  if (messageId.includes("mail.gmail.com")) return "gmail";
+  if (messageId.includes("we.are.superhuman.com")) return "superhuman";
+  if (messageId.includes("mail.shortwave.com")) return "shortwave";
+
+  // take part after @ and remove final >
+  const emailClient = messageId.split("@")[1].split(">")[0];
+  return emailClient;
 }

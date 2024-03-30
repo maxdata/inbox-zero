@@ -1,5 +1,5 @@
 import "server-only";
-import { gmail_v1 } from "googleapis";
+import { type gmail_v1 } from "googleapis";
 import prisma from "@/utils/prisma";
 import {
   InboxZeroLabelKey,
@@ -17,12 +17,19 @@ export const inboxZeroLabels: Record<InboxZeroLabelKey, string> = {
   archived: "IZ Archived",
   labeled: "IZ Labeled",
   acted: "IZ Acted",
+  cold_email: "Cold Email",
   // drafted: "Response Drafted by IZ",
   // suggested_label: "Label Suggested by IZ",
 };
 
 export const INBOX_LABEL_ID = "INBOX";
 export const SENT_LABEL_ID = "SENT";
+export const UNREAD_LABEL_ID = "UNREAD";
+export const STARRED_LABEL_ID = "STARRED";
+export const IMPORTANT_LABEL_ID = "IMPORTANT";
+export const SPAM_LABEL_ID = "SPAM";
+export const TRASH_LABEL_ID = "TRASH";
+export const DRAFT_LABEL_ID = "DRAFT";
 
 export async function getGmailLabels(gmail: gmail_v1.Gmail) {
   const res = await gmail.users.labels.list({ userId: "me" });
@@ -32,6 +39,7 @@ export async function getGmailLabels(gmail: gmail_v1.Gmail) {
 async function createGmailLabel(options: {
   name: string;
   gmail: gmail_v1.Gmail;
+  labelListVisibility: "labelShow" | "labelHide";
 }) {
   const { name, gmail } = options;
 
@@ -45,7 +53,7 @@ async function createGmailLabel(options: {
           textColor: "#ffffff",
         },
         messageListVisibility: "hide",
-        labelListVisibility: "labelShow",
+        labelListVisibility: options.labelListVisibility,
       },
     });
 
@@ -77,9 +85,29 @@ export async function getUserLabels(options: {
   return [];
 }
 
+export async function getUserLabel(options: {
+  email: string;
+  labelName: string;
+  gmail: gmail_v1.Gmail;
+}): Promise<
+  | { id?: string | null; name?: string | null; description?: string | null }
+  | undefined
+> {
+  const { email, labelName } = options;
+  const labels = await getUserLabels({ email });
+  const label = labels?.find((l) => l.name === labelName);
+
+  if (label) return label;
+
+  // fallback to gmail if not found
+  const gmailLabels = await getGmailLabels(options.gmail);
+  const gmailLabel = gmailLabels?.find((l) => l.name === labelName);
+  return gmailLabel;
+}
+
 export async function getOrCreateInboxZeroLabels(
   email: string,
-  gmail: gmail_v1.Gmail
+  gmail: gmail_v1.Gmail,
 ): Promise<InboxZeroLabels> {
   // 1. check redis
   const redisLabels = await getInboxZeroLabels({ email });
@@ -98,13 +126,14 @@ export async function getOrCreateInboxZeroLabels(
     await Promise.all(
       inboxZeroLabelKeys.map(async (key) => {
         let gmailLabel = gmailLabels?.find(
-          (l) => l.name === inboxZeroLabels[key]
+          (l) => l.name === inboxZeroLabels[key],
         );
 
         if (!gmailLabel) {
           gmailLabel = await createGmailLabel({
             name: inboxZeroLabels[key],
             gmail,
+            labelListVisibility: "labelHide",
           });
         }
 
@@ -117,7 +146,7 @@ export async function getOrCreateInboxZeroLabels(
           });
           return [key, label] as [InboxZeroLabelKey, RedisLabel];
         }
-      })
+      }),
     )
   ).filter(isDefined);
 
@@ -145,6 +174,7 @@ export async function getOrCreateInboxZeroLabel(options: {
     gmailLabel = await createGmailLabel({
       name: labelName,
       gmail,
+      labelListVisibility: "labelHide",
     });
   }
 

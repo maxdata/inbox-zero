@@ -4,9 +4,10 @@ import { env } from "@/env.mjs";
 
 type ClientOptions = {
   accessToken?: string;
+  refreshToken?: string;
 };
 
-const getClient = (session: ClientOptions & { refreshToken?: string }) => {
+const getClient = (session: ClientOptions) => {
   const auth = new google.auth.OAuth2({
     clientId: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
@@ -27,9 +28,21 @@ export const getGmailClient = (session: ClientOptions) => {
   return gmail;
 };
 
+export const getContactsClient = (session: ClientOptions) => {
+  const auth = getClient(session);
+  const contacts = google.people({ version: "v1", auth });
+
+  return contacts;
+};
+
+export const getGmailAccessToken = (session: ClientOptions) => {
+  const auth = getClient(session);
+  return auth.getAccessToken();
+};
+
 export const getGmailClientWithRefresh = async (
   session: ClientOptions & { refreshToken: string; expiryDate?: number | null },
-  providerAccountId: string
+  providerAccountId: string,
 ) => {
   const auth = getClient(session);
   const gmail = google.gmail({ version: "v1", auth });
@@ -49,7 +62,7 @@ export const getGmailClientWithRefresh = async (
       {
         refresh_token: session.refreshToken,
         providerAccountId,
-      }
+      },
     );
   }
 

@@ -1,17 +1,14 @@
-import React, { Suspense } from "react";
-import { PostHogPageview, PostHogProvider } from "@/providers/PostHogProvider";
+import { LemonScript } from "@/utils/scripts/lemon";
 
-export default async function RootLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
     <>
-      <Suspense>
-        <PostHogPageview />
-      </Suspense>
-      <PostHogProvider>{children}</PostHogProvider>
+      {children}
+      <LemonScript />
     </>
   );
 }

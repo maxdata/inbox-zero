@@ -3,14 +3,21 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { type NextAuthConfig, type DefaultSession, Account } from "next-auth";
 import { type JWT } from "@auth/core/jwt";
 import GoogleProvider from "next-auth/providers/google";
+import { createContact as createLoopsContact } from "@inboxzero/loops";
+import { createContact as createResendContact } from "@inboxzero/resend";
 import prisma from "@/utils/prisma";
 import { env } from "@/env.mjs";
+import { captureException } from "@/utils/error";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.profile",
   "https://www.googleapis.com/auth/userinfo.email",
 
   "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/gmail.settings.basic",
+  ...(env.NEXT_PUBLIC_CONTACTS_ENABLED
+    ? ["https://www.googleapis.com/auth/contacts"]
+    : []),
 ];
 
 export const getAuthOptions: (options?: {
@@ -35,7 +42,7 @@ export const getAuthOptions: (options?: {
       },
     }),
   ],
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prisma) as any, // TODO
   session: { strategy: "jwt" },
   // based on: https://authjs.dev/guides/basics/refresh-token-rotation
   // and: https://github.com/nextauthjs/next-auth-refresh-token-example/blob/main/pages/api/auth/%5B...nextauth%5D.js
@@ -53,13 +60,13 @@ export const getAuthOptions: (options?: {
               access_token: account.access_token,
               refresh_token: account.refresh_token,
               expires_at: calculateExpiresAt(
-                account.expires_in as number | undefined
+                account.expires_in as number | undefined,
               ),
             },
             {
               providerAccountId: account.providerAccountId,
               refresh_token: account.refresh_token,
-            }
+            },
           );
           token.refresh_token = account.refresh_token;
         } else {
@@ -89,7 +96,7 @@ export const getAuthOptions: (options?: {
       } else {
         // If the access token has expired, try to refresh it
         console.log(
-          `Token expired at: ${token.expires_at}. Attempting refresh.`
+          `Token expired at: ${token.expires_at}. Attempting refresh.`,
         );
         return await refreshAccessToken(token);
       }
@@ -109,8 +116,24 @@ export const getAuthOptions: (options?: {
       return session;
     },
   },
+  events: {
+    signIn: async ({ isNewUser, user }) => {
+      if (isNewUser && user.email) {
+        try {
+          await Promise.allSettled([
+            createLoopsContact(user.email),
+            createResendContact({ email: user.email }),
+          ]);
+        } catch (error) {
+          console.error("Error creating contacts", error);
+          captureException(error);
+        }
+      }
+    },
+  },
   pages: {
     signIn: "/login",
+    error: "/login/error",
   },
 });
 
@@ -124,10 +147,20 @@ export const authOptions = getAuthOptions();
 const refreshAccessToken = async (token: JWT): Promise<JWT> => {
   const account = await prisma.account.findFirst({
     where: { userId: token.sub as string, provider: "google" },
+    select: {
+      userId: true,
+      refresh_token: true,
+      providerAccountId: true,
+    },
   });
 
+  if (!account) {
+    console.error("No account found in database for", token.sub);
+    return { error: "MissingAccountError" };
+  }
+
   if (!account?.refresh_token) {
-    console.error("No refresh token found in database for", account?.userId);
+    console.error("No refresh token found in database for", account.userId);
     return {
       ...token,
       error: "RefreshAccessTokenError",
@@ -162,7 +195,7 @@ const refreshAccessToken = async (token: JWT): Promise<JWT> => {
       {
         providerAccountId: account.providerAccountId,
         refresh_token: account.refresh_token,
-      }
+      },
     );
 
     return {
@@ -196,7 +229,7 @@ export async function saveRefreshToken(
     refresh_token?: string;
     expires_at?: number;
   },
-  account: Pick<Account, "refresh_token" | "providerAccountId">
+  account: Pick<Account, "refresh_token" | "providerAccountId">,
 ) {
   return await prisma.account.update({
     data: {
@@ -241,6 +274,6 @@ declare module "@auth/core/jwt" {
     access_token?: string;
     expires_at?: number;
     refresh_token?: string;
-    error?: "RefreshAccessTokenError";
+    error?: "RefreshAccessTokenError" | "MissingAccountError";
   }
 }

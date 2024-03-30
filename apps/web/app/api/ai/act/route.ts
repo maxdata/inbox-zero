@@ -5,8 +5,9 @@ import { getGmailClient } from "@/utils/gmail/client";
 import prisma from "@/utils/prisma";
 import { actBodyWithHtml } from "@/app/api/ai/act/validation";
 import { withError } from "@/utils/middleware";
-import { parseEmail } from "@/utils/mail";
-import { AIModel } from "@/utils/openai";
+import { getAiProviderAndModel } from "@/utils/llms";
+
+export const maxDuration = 60;
 
 export const POST = withError(async (request: Request) => {
   const session = await auth();
@@ -20,17 +21,24 @@ export const POST = withError(async (request: Request) => {
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: session.user.id },
-    include: { rules: { include: { actions: true } } },
+    select: {
+      id: true,
+      email: true,
+      about: true,
+      aiProvider: true,
+      aiModel: true,
+      openAIApiKey: true,
+      rules: { include: { actions: true } },
+    },
   });
 
-  const content =
-    parseEmail(body.email.textHtml || "") ||
-    body.email.textPlain ||
-    body.email.snippet ||
-    "";
+  const { model, provider } = getAiProviderAndModel(
+    user.aiProvider,
+    user.aiModel,
+  );
 
   const result = await planOrExecuteAct({
-    email: { ...body.email, content },
+    email: body.email,
     rules: user.rules,
     gmail,
     allowExecute: !!body.allowExecute,
@@ -39,7 +47,8 @@ export const POST = withError(async (request: Request) => {
     userEmail: user.email || "",
     automated: false,
     userAbout: user.about || "",
-    aiModel: user.aiModel as AIModel,
+    aiProvider: provider,
+    aiModel: model,
     openAIApiKey: user.openAIApiKey,
   });
 

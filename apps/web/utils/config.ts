@@ -1,3 +1,7 @@
+import { env } from "@/env.mjs";
+
+export const AI_GENERATED_FIELD_VALUE = "___AI_GENERATE___";
+
 // This will be a user setting in the future
 export const generalPrompt = `
 I am the CEO of OpenAI. OpenAI is a research laboratory whose mission to ensure that artificial general intelligence benefits all of humanity.
@@ -9,4 +13,6 @@ Rules to follow:
 * Draft responses to snoozed emails that I haven't received a response to yet.
 `;
 
-export const DEFAULT_AI_MODEL = "gpt-3.5-turbo"; // gpt-4 rate limits are worse
+export const appHomePath = env.NEXT_PUBLIC_DISABLE_TINYBIRD
+  ? "/automation"
+  : "/bulk-unsubscribe";

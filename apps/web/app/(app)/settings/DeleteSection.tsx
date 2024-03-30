@@ -1,14 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { FormSection, FormSectionLeft } from "@/components/Form";
 import { toastError, toastSuccess } from "@/components/Toast";
 import { deleteAccountAction } from "@/utils/actions";
+import { logOut } from "@/utils/user";
 
 export function DeleteSection() {
-  const router = useRouter();
-
   return (
     <FormSection>
       <FormSectionLeft
@@ -21,7 +19,7 @@ export function DeleteSection() {
           color="red"
           onClick={async () => {
             const yes = window.confirm(
-              "Are you sure you want to delete your account?"
+              "Are you sure you want to delete your account?",
             );
 
             if (!yes) return;
@@ -29,7 +27,7 @@ export function DeleteSection() {
             try {
               await deleteAccountAction();
               toastSuccess({ description: "Account deleted!" });
-              router.push("/");
+              await logOut("/");
             } catch (error) {
               toastError({ description: "Error deleting account." });
             }

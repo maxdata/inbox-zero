@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import { Dialog } from "@headlessui/react";
-import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
+import { MenuIcon, XIcon } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 const navigation = [
-  { name: "Features", href: "#features" },
-  { name: "FAQ", href: "#faq" },
+  { name: "Features", href: "/#features" },
+  { name: "FAQ", href: "/#faq" },
   { name: "Open Source", href: "/github", target: "_blank" as const },
+  { name: "Affiliates", href: "/affiliates", target: "_blank" as const },
+  { name: "Pricing", href: "/#pricing" },
 ];
 
 export function Header() {
@@ -24,7 +26,7 @@ export function Header() {
         aria-label="Global"
       >
         <div className="flex lg:flex-1">
-          <Link href="#" className="-m-1.5 p-1.5">
+          <Link href="/" className="-m-1.5 p-1.5">
             <span className="sr-only">Inbox Zero</span>
             <Logo className="h-4 w-auto" />
           </Link>
@@ -36,7 +38,7 @@ export function Header() {
             onClick={() => setMobileMenuOpen(true)}
           >
             <span className="sr-only">Open main menu</span>
-            <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+            <MenuIcon className="h-6 w-6" aria-hidden="true" />
           </button>
         </div>
         <div className="hidden lg:flex lg:gap-x-12">
@@ -45,6 +47,7 @@ export function Header() {
               key={item.name}
               href={item.href}
               target={item.target}
+              prefetch={item.target !== "_blank"}
               className="text-sm font-semibold leading-6 text-gray-900"
             >
               {item.name}
@@ -53,7 +56,7 @@ export function Header() {
         </div>
         <div className="hidden lg:flex lg:flex-1 lg:justify-end">
           <Link
-            href="/stats"
+            href="/welcome"
             className="text-sm font-semibold leading-6 text-gray-900"
           >
             Log in <span aria-hidden="true">&rarr;</span>
@@ -79,7 +82,7 @@ export function Header() {
               onClick={() => setMobileMenuOpen(false)}
             >
               <span className="sr-only">Close menu</span>
-              <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+              <XIcon className="h-6 w-6" aria-hidden="true" />
             </button>
           </div>
           <div className="mt-6 flow-root">
@@ -90,6 +93,7 @@ export function Header() {
                     key={item.name}
                     href={item.href}
                     className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
+                    onClick={() => setMobileMenuOpen(false)}
                   >
                     {item.name}
                   </Link>
@@ -97,10 +101,11 @@ export function Header() {
               </div>
               <div className="py-6">
                 <Link
-                  href="/stats"
+                  href="/welcome"
                   className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
                   onClick={() => {
                     posthog.capture("Clicked Log In", { position: "top-nav" });
+                    setMobileMenuOpen(false);
                   }}
                 >
                   Log in

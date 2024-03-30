@@ -1,12 +1,12 @@
 import { ZodError } from "zod";
-import { NextResponse } from "next/server";
-import { captureException } from "@/utils/error";
+import { NextRequest, NextResponse } from "next/server";
 import { StreamingTextResponse } from "ai";
+import { captureException } from "@/utils/error";
 import { env } from "@/env.mjs";
 
 export type NextHandler = (
-  req: Request,
-  { params }: { params: Record<string, string | undefined> }
+  req: NextRequest,
+  { params }: { params: Record<string, string | undefined> },
 ) => Promise<NextResponse | StreamingTextResponse>;
 
 export function withError(handler: NextHandler): NextHandler {
@@ -21,13 +21,50 @@ export function withError(handler: NextHandler): NextHandler {
         }
         return NextResponse.json(
           { error: { issues: error.issues } },
-          { status: 400 }
+          { status: 400 },
         );
       }
-      captureException(error);
+
+      if ((error as any)?.errors?.[0]?.reason === "insufficientPermissions") {
+        return NextResponse.json(
+          {
+            error:
+              "You must grant all Gmail permissions to use the app. Please log out and log in again to grant permissions.",
+          },
+          { status: 403 },
+        );
+      }
+
+      if ((error as any)?.errors?.[0]?.reason === "rateLimitExceeded") {
+        return NextResponse.json(
+          {
+            error: `You have exceeded the Gmail rate limit. Please try again later. Error from Gmail: "${(
+              error as any
+            )?.errors?.[0]?.message}"`,
+          },
+          { status: 403 },
+        );
+      }
+
+      if (isErrorWithConfigAndHeaders(error)) {
+        delete error.config.headers;
+      }
+
+      captureException(error, { extra: { url: req.url, params } });
       console.error(`Error for url: ${req.url}:`);
       console.error(error);
       return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
   };
+}
+
+function isErrorWithConfigAndHeaders(
+  error: unknown,
+): error is { config: { headers: unknown } } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "config" in error &&
+    "headers" in (error as { config: any }).config
+  );
 }

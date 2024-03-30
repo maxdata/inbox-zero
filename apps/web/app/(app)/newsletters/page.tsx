@@ -1,11 +1,14 @@
 "use client";
 
 import { subDays } from "date-fns";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
-import { NewsletterStats } from "@/app/(app)/stats/NewsletterStats";
-import { LoadStatsButton, useLoading } from "@/app/(app)/stats/LoadStatsButton";
+import { NewsletterStats } from "@/app/(app)/bulk-unsubscribe/NewsletterStats";
+import { LoadStatsButton } from "@/app/(app)/stats/LoadStatsButton";
 import { ActionBar } from "@/app/(app)/stats/ActionBar";
+import { useStatLoader } from "@/providers/StatLoaderProvider";
+import { OnboardingModal } from "@/components/OnboardingModal";
+import { TextLink } from "@/components/Typography";
 
 const selectOptions = [
   { label: "Last week", value: "7" },
@@ -20,7 +23,7 @@ const defaultSelected = selectOptions[2];
 // May want to refactor some of this into a shared hook
 export default function NewslettersPage() {
   const [dateDropdown, setDateDropdown] = useState<string>(
-    defaultSelected.label
+    defaultSelected.label,
   );
 
   const onSetDateDropdown = useCallback(
@@ -28,7 +31,7 @@ export default function NewslettersPage() {
       const { label } = option;
       setDateDropdown(label);
     },
-    []
+    [],
   );
 
   const now = useMemo(() => new Date(), []);
@@ -37,23 +40,33 @@ export default function NewslettersPage() {
     to: now,
   });
 
-  const { loading, onLoad } = useLoading();
-
-  const isLoading = useRef(false);
+  const { isLoading, onLoad } = useStatLoader();
+  const refreshInterval = isLoading ? 5_000 : 1_000_000;
   useEffect(() => {
-    if (!isLoading.current) {
-      onLoad(false, false);
-      isLoading.current = true;
-    }
+    onLoad({ loadBefore: false, showToast: false });
   }, [onLoad]);
-
-  const refreshInterval = loading ? 3_000 : 1_000_000;
 
   return (
     <div>
-      <div className="sticky top-0 z-10 flex justify-between border-b bg-white px-4 py-2 shadow">
-        <div />
-        <div className="flex space-x-1">
+      <div className="sticky top-0 z-10 flex border-b bg-white px-4 py-2 shadow sm:justify-between">
+        <div className="flex items-center">
+          <OnboardingModal
+            title="Getting started with Bulk Unsubscribe"
+            description={
+              <>
+                Learn how to quickly bulk unsubscribe from unwanted emails. You
+                can read more in our{" "}
+                <TextLink href="https://docs.getinboxzero.com/essentials/bulk-email-unsubscriber">
+                  documentation
+                </TextLink>
+                .
+              </>
+            }
+            videoId="T1rnooV4OYc"
+          />
+        </div>
+
+        <div className="space-y-1 sm:flex sm:space-x-1 sm:space-y-0">
           <ActionBar
             selectOptions={selectOptions}
             dateDropdown={dateDropdown}
@@ -61,7 +74,7 @@ export default function NewslettersPage() {
             dateRange={dateRange}
             setDateRange={setDateRange}
           />
-          <LoadStatsButton loading={loading} onLoad={onLoad} />
+          <LoadStatsButton />
         </div>
       </div>
 

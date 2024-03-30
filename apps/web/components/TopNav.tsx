@@ -1,18 +1,18 @@
 import { Fragment } from "react";
-import { Bars3Icon } from "@heroicons/react/24/outline";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import clsx from "clsx";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { Menu, Transition } from "@headlessui/react";
 import { Button } from "@/components/Button";
-// import { PromptBar } from "@/components/PromptBar";
+import { ChevronDownIcon, MenuIcon } from "lucide-react";
+import { logOut } from "@/utils/user";
+import Link from "@/node_modules/next/link";
 
 const userNavigation = [
   { name: "Usage", href: "/usage" },
   {
     name: "Sign out",
     href: "#",
-    onClick: () => signOut({ callbackUrl: window.location.origin }),
+    onClick: () => logOut(window.location.origin),
   },
 ];
 
@@ -25,29 +25,14 @@ export function TopNav(props: { setSidebarOpen: (open: boolean) => void }) {
         onClick={() => props.setSidebarOpen(true)}
       >
         <span className="sr-only">Open sidebar</span>
-        <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+        <MenuIcon className="h-6 w-6" aria-hidden="true" />
       </button>
 
       {/* Separator */}
       <div className="h-6 w-px bg-gray-900/10 lg:hidden" aria-hidden="true" />
 
       <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-        {/* <PromptBar /> */}
-
         <div className="ml-auto flex items-center gap-x-4 lg:gap-x-6">
-          {/* <button
-            type="button"
-            className="-m-2.5 p-2.5 text-gray-400 hover:text-gray-500"
-          >
-            <span className="sr-only">View notifications</span>
-            <BellIcon className="h-6 w-6" aria-hidden="true" />
-          </button>
-
-          <div
-            className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-900/10"
-            aria-hidden="true"
-          /> */}
-
           <ProfileDropdown />
         </div>
       </div>
@@ -63,20 +48,22 @@ function ProfileDropdown() {
       <Menu as="div" className="relative">
         <Menu.Button className="-m-1.5 flex items-center p-1.5">
           <span className="sr-only">Open user menu</span>
-          {!!session.user.image && (
+          {session.user.image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               className="h-8 w-8 rounded-full bg-gray-50"
               src={session.user.image}
-              alt=""
+              alt="Profile"
             />
+          ) : (
+            <div className="h-8 w-8 rounded-full bg-blue-500" />
           )}
           <span className="hidden lg:flex lg:items-center">
             <span
               className="ml-4 text-sm font-semibold leading-6 text-gray-900"
               aria-hidden="true"
             >
-              {session.user.name}
+              {session.user.name || "Account"}
             </span>
             <ChevronDownIcon
               className="ml-2 h-5 w-5 text-gray-400"
@@ -102,16 +89,16 @@ function ProfileDropdown() {
             {userNavigation.map((item) => (
               <Menu.Item key={item.name}>
                 {({ active }) => (
-                  <a
+                  <Link
                     href={item.href}
                     className={clsx(
                       active ? "bg-gray-50" : "",
-                      "block px-3 py-1 text-sm leading-6 text-gray-900"
+                      "block px-3 py-1 text-sm leading-6 text-gray-900",
                     )}
                     onClick={item.onClick}
                   >
                     {item.name}
-                  </a>
+                  </Link>
                 )}
               </Menu.Item>
             ))}

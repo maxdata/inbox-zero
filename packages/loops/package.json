@@ -1,0 +1,13 @@
+{
+  "name": "@inboxzero/loops",
+  "version": "0.0.0",
+  "main": "src/index.ts",
+  "dependencies": {
+    "loops": "^0.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.11.30",
+    "tsconfig": "workspace:*",
+    "typescript": "5.4.2"
+  }
+}
